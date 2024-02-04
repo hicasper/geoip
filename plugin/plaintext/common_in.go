@@ -138,6 +138,7 @@ func (t *textIn) scanFileForSurgeRuleSetIn(reader io.Reader, entry *lib.Entry) e
 			line, _, _ = strings.Cut(line, "//")
 			line, _, _ = strings.Cut(line, "/*")
 			_, line, _ = strings.Cut(line, ",")
+			line, _, _ = strings.Cut(line, ",")
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
