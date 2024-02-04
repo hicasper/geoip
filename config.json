@@ -36,7 +36,7 @@
       }
     },
     {
-      "type": "clashRuleSet",
+      "type": "surgeRuleSet",
       "action": "add",
       "args": {
         "name": "cn",
