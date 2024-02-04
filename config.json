@@ -31,6 +31,24 @@
       "action": "add",
       "args": {
         "name": "cn",
+        "uri": "https://raw.githubusercontent.com/metowolf/iplist/master/data/special/china.txt",
+        "onlyIPType": "ipv4"
+      }
+    },
+    {
+      "type": "clashRuleSet",
+      "action": "add",
+      "args": {
+        "name": "cn",
+        "uri": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Cloud/CloudCN/CloudCN.list",
+        "onlyIPType": "ipv4"
+      }
+    },
+    {
+      "type": "text",
+      "action": "add",
+      "args": {
+        "name": "cn",
         "uri": "https://raw.githubusercontent.com/gaoyifan/china-operator-ip/ip-lists/china.txt",
         "onlyIPType": "ipv4"
       }
