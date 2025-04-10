@@ -2,7 +2,7 @@ name: Build geoip files
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * 4"
+    - cron: "0 0 * * 5"
   push:
     branches:
       - master
@@ -27,8 +27,8 @@ jobs:
 
       - name: Set variables
         run: |
-          echo "TAG_NAME=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
-          echo "RELEASE_NAME=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+          echo "TAG_NAME=$(date +%y%m%d%H%M)" >> $GITHUB_ENV
+          echo "RELEASE_NAME=$(date +%y%m%d%H%M)" >> $GITHUB_ENV
         shell: bash
 
       - name: Download GeoLite2 databases
@@ -120,3 +120,12 @@ jobs:
           file: ./output/*
           release_name: ${{ env.RELEASE_NAME }}
           tag: ${{ env.TAG_NAME }}
+
+      - name: Delete older releases
+        uses: dev-drprasad/delete-older-releases@v0.3.4
+        with:
+          repo: hicasper/geoip # defaults to current repo
+          keep_latest: 8
+          delete_expired_data: 180 # Optional parameters
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
