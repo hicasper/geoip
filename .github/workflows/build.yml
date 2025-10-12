@@ -34,20 +34,29 @@ jobs:
       - name: Download GeoLite2 databases
         env:
           LICENSE_KEY: ${{ secrets.MAXMIND_GEOLITE2_LICENSE }}
+          IP2LOC_TOKEN: ${{ secrets.IP2LOC_TOKEN }}
         run: |
           mkdir -p output
           curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=${LICENSE_KEY}&suffix=tar.gz" -o ./output/GeoLite2-ASN.tar.gz
           curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN-CSV&license_key=${LICENSE_KEY}&suffix=zip" -o ./output/GeoLite2-ASN-CSV.zip
           curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${LICENSE_KEY}&suffix=tar.gz" -o ./output/GeoLite2-Country.tar.gz
           curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country-CSV&license_key=${LICENSE_KEY}&suffix=zip" -o ./output/GeoLite2-Country-CSV.zip
+          curl -L "https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city/geolite2-city-ipv6.csv.gz" -o ./geolite2-city-ipv6.csv.gz
+          curl -L "https://www.ip2location.com/download/?token=${IP2LOC_TOKEN}&file=DB3LITECSV" -o ./output/IP2LOCATION-LITE-DB3.CSV.zip
+          curl -L "https://github.com/ipinfo/mmdbctl/releases/download/mmdbctl-1.4.8/mmdbctl_1.4.8_linux_amd64.tar.gz" -o ./mmdbctl_linux_amd64.tar.gz
 
       - name: Prepare GeoLite2 databases
         run: |
           cp ./output/{*.gz,*.zip} ./
           unzip GeoLite2-Country-CSV.zip
           unzip GeoLite2-ASN-CSV.zip
+          unzip IP2LOCATION-LITE-DB3.CSV.zip
           tar -xvzf GeoLite2-Country.tar.gz
           tar -xvzf GeoLite2-ASN.tar.gz
+          tar -xvzf mmdbctl_linux_amd64.tar.gz
+          gunzip geolite2-city-ipv6.csv.gz
+          mv -f mmdbctl_*_linux_amd64 ./mmdbctl
+          chmod +x ./mmdbctl
 
           cp GeoLite2-Country_*/*.mmdb ./output/
           cp GeoLite2-ASN_*/*.mmdb ./output/
@@ -62,6 +71,12 @@ jobs:
         run: |
           go build ./
           ./geoip convert -c ./config.json
+
+      - name: Build custom hybrid mmdb
+        run: |
+          pip install pycountry
+          python customconverter.py IP2LOCATION-LITE-DB3.CSV,geolite2-city-ipv6.csv IP2Loc-GeoLite2-City.csv IP2Loc-GeoLite2-City.json
+          ./mmdbctl import -i IP2Loc-GeoLite2-City.csv -c -o ./output/IP2Loc-GeoLite2-City.mmdb -m recurse --no-network --range-multicol -s 28 -f iso_code,country,region,city
 
       - name: Verify mmdb files
         run: |
