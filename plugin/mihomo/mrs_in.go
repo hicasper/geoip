@@ -126,13 +126,7 @@ func (m *MRSIn) Input(container lib.Container) (lib.Container, error) {
 		return nil, fmt.Errorf("❌ [type %s | action %s] no entry is generated", m.Type, m.Action)
 	}
 
-	var ignoreIPType lib.IgnoreIPOption
-	switch m.OnlyIPType {
-	case lib.IPv4:
-		ignoreIPType = lib.IgnoreIPv6
-	case lib.IPv6:
-		ignoreIPType = lib.IgnoreIPv4
-	}
+	ignoreIPType := lib.GetIgnoreIPType(m.OnlyIPType)
 
 	for _, entry := range entries {
 		switch m.Action {
@@ -297,8 +291,7 @@ func (m *MRSIn) parseMRS(data []byte, entry *lib.Entry) error {
 		return fmt.Errorf("invalid MRS extra length")
 	}
 	if length > 0 {
-		extra := make([]byte, length)
-		_, err = io.ReadFull(reader, extra)
+		_, err = io.CopyN(io.Discard, reader, length)
 		if err != nil {
 			return err
 		}

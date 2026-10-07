@@ -138,13 +138,7 @@ func (t *TextIn) Input(container lib.Container) (lib.Container, error) {
 		return nil, err
 	}
 
-	var ignoreIPType lib.IgnoreIPOption
-	switch t.OnlyIPType {
-	case lib.IPv4:
-		ignoreIPType = lib.IgnoreIPv6
-	case lib.IPv6:
-		ignoreIPType = lib.IgnoreIPv4
-	}
+	ignoreIPType := lib.GetIgnoreIPType(t.OnlyIPType)
 
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("❌ [type %s | action %s] no entry is generated", t.Type, t.Action)
@@ -259,6 +253,10 @@ func (t *TextIn) walkRemoteFile(url, name string, entries map[string]*lib.Entry)
 }
 
 func (t *TextIn) appendIPOrCIDR(ipOrCIDR []string, name string, entries map[string]*lib.Entry) error {
+	if len(ipOrCIDR) == 0 {
+		return nil
+	}
+
 	name = strings.ToUpper(name)
 
 	entry, found := entries[name]

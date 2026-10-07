@@ -109,20 +109,28 @@ func (m *MRSOut) filterAndSortList(container lib.Container) []string {
 		}
 	}
 
+	hasWantedList := false
 	wantList := make([]string, 0, len(m.Want))
 	for _, want := range m.Want {
-		if want = strings.ToUpper(strings.TrimSpace(want)); want != "" && !excludeMap[want] {
-			wantList = append(wantList, want)
+		if want = strings.ToUpper(strings.TrimSpace(want)); want != "" {
+			hasWantedList = true
+			if !excludeMap[want] {
+				wantList = append(wantList, want)
+			}
 		}
 	}
 
-	if len(wantList) > 0 {
+	if hasWantedList {
+		if len(wantList) == 0 {
+			return []string{}
+		}
+
 		// Sort the list
 		slices.Sort(wantList)
 		return wantList
 	}
 
-	list := make([]string, 0, 300)
+	list := make([]string, 0, container.Len())
 	for entry := range container.Loop() {
 		name := entry.GetName()
 		if excludeMap[name] {
@@ -138,16 +146,7 @@ func (m *MRSOut) filterAndSortList(container lib.Container) []string {
 }
 
 func (m *MRSOut) generate(entry *lib.Entry) error {
-	var ipRanges []netipx.IPRange
-	var err error
-	switch m.OnlyIPType {
-	case lib.IPv4:
-		ipRanges, err = entry.MarshalIPRange(lib.IgnoreIPv6)
-	case lib.IPv6:
-		ipRanges, err = entry.MarshalIPRange(lib.IgnoreIPv4)
-	default:
-		ipRanges, err = entry.MarshalIPRange()
-	}
+	ipRanges, err := entry.MarshalIPRange(lib.GetIgnoreIPType(m.OnlyIPType))
 	if err != nil {
 		return err
 	}

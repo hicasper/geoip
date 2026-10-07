@@ -1,62 +1,96 @@
 name: Build geoip files
 on:
   workflow_dispatch:
+    inputs:
+      download_geoip_db_from_github:
+        description: "Download GeoLite2 databases from GitHub instead of MaxMind"
+        type: boolean
+        default: false
   schedule:
     - cron: "0 0 * * 5"
   push:
     branches:
       - master
     paths-ignore:
+      - "assets/*"
       - ".gitignore"
       - "LICENSE*"
       - "*.md"
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - "assets/*"
+      - ".gitignore"
+      - "LICENSE*"
+      - "*.md"
+permissions:
+  contents: write
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout codebase
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: ./go.mod
+          cache-dependency-path: ./go.sum
 
       - name: Set variables
         run: |
           echo "TAG_NAME=$(date +%y%m%d%H%M)" >> $GITHUB_ENV
           echo "RELEASE_NAME=$(date +%y%m%d%H%M)" >> $GITHUB_ENV
+          if [[ "${{ github.event_name }}" == "pull_request" || "${{ inputs.download_geoip_db_from_github }}" == "true" || "$(date -u +%u)" != "4" ]]; then
+            echo "DOWNLOAD_FROM_GITHUB=true" >> $GITHUB_ENV
+          else
+            echo "DOWNLOAD_FROM_GITHUB=false" >> $GITHUB_ENV
+          fi
         shell: bash
 
-      - name: Download GeoLite2 databases
+      - name: Download GeoLite2 databases from GitHub
+        if: env.DOWNLOAD_FROM_GITHUB == 'true'
+        run: |
+          mkdir -p output
+          curl -L --retry 3 --fail-with-body "https://raw.githubusercontent.com/Loyalsoldier/geoip/refs/heads/release/GeoLite2-ASN.tar.gz" -o ./output/GeoLite2-ASN.tar.gz
+          curl -L --retry 3 --fail-with-body "https://raw.githubusercontent.com/Loyalsoldier/geoip/refs/heads/release/GeoLite2-ASN-CSV.zip" -o ./output/GeoLite2-ASN-CSV.zip
+          curl -L --retry 3 --fail-with-body "https://raw.githubusercontent.com/Loyalsoldier/geoip/refs/heads/release/GeoLite2-Country.tar.gz" -o ./output/GeoLite2-Country.tar.gz
+          curl -L --retry 3 --fail-with-body "https://raw.githubusercontent.com/Loyalsoldier/geoip/refs/heads/release/GeoLite2-Country-CSV.zip" -o ./output/GeoLite2-Country-CSV.zip
+
+      - name: Download GeoLite2 databases from MaxMind
+        if: env.DOWNLOAD_FROM_GITHUB != 'true'
         env:
           LICENSE_KEY: ${{ secrets.MAXMIND_GEOLITE2_LICENSE }}
+        run: |
+          mkdir -p output
+          curl -L --retry 3 --fail-with-body "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=${LICENSE_KEY}&suffix=tar.gz" -o ./output/GeoLite2-ASN.tar.gz
+          curl -L --retry 3 --fail-with-body "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN-CSV&license_key=${LICENSE_KEY}&suffix=zip" -o ./output/GeoLite2-ASN-CSV.zip
+          curl -L --retry 3 --fail-with-body "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${LICENSE_KEY}&suffix=tar.gz" -o ./output/GeoLite2-Country.tar.gz
+          curl -L --retry 3 --fail-with-body "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country-CSV&license_key=${LICENSE_KEY}&suffix=zip" -o ./output/GeoLite2-Country-CSV.zip
+
+      - name: Download custom city data
+        if: github.event_name != 'pull_request'
+        env:
           IP2LOC_TOKEN: ${{ secrets.IP2LOC_TOKEN }}
         run: |
           mkdir -p output
-          curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=${LICENSE_KEY}&suffix=tar.gz" -o ./output/GeoLite2-ASN.tar.gz
-          curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN-CSV&license_key=${LICENSE_KEY}&suffix=zip" -o ./output/GeoLite2-ASN-CSV.zip
-          curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${LICENSE_KEY}&suffix=tar.gz" -o ./output/GeoLite2-Country.tar.gz
-          curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country-CSV&license_key=${LICENSE_KEY}&suffix=zip" -o ./output/GeoLite2-Country-CSV.zip
-          curl -L "https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city/geolite2-city-ipv6.csv.gz" -o ./geolite2-city-ipv6.csv.gz
-          curl -L "https://www.ip2location.com/download/?token=${IP2LOC_TOKEN}&file=DB3LITECSV" -o ./output/IP2LOCATION-LITE-DB3.CSV.zip
-          curl -L "https://github.com/ipinfo/mmdbctl/releases/download/mmdbctl-1.4.8/mmdbctl_1.4.8_linux_amd64.tar.gz" -o ./mmdbctl_linux_amd64.tar.gz
+          curl -L --retry 3 --fail-with-body "https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city/geolite2-city-ipv6.csv.gz" -o ./geolite2-city-ipv6.csv.gz
+          curl -L --retry 3 --fail-with-body "https://www.ip2location.com/download/?token=${IP2LOC_TOKEN}&file=DB3LITECSV" -o ./output/IP2LOCATION-LITE-DB3.CSV.zip
+          curl -L --retry 3 --fail-with-body "https://github.com/ipinfo/mmdbctl/releases/download/mmdbctl-1.4.8/mmdbctl_1.4.8_linux_amd64.tar.gz" -o ./mmdbctl_linux_amd64.tar.gz
 
       - name: Prepare GeoLite2 databases
         run: |
+          ls -lah ./output
           cp ./output/{*.gz,*.zip} ./
           unzip GeoLite2-Country-CSV.zip
           unzip GeoLite2-ASN-CSV.zip
-          unzip IP2LOCATION-LITE-DB3.CSV.zip
           tar -xvzf GeoLite2-Country.tar.gz
           tar -xvzf GeoLite2-ASN.tar.gz
-          tar -xvzf mmdbctl_linux_amd64.tar.gz
-          gunzip geolite2-city-ipv6.csv.gz
-          mv -f mmdbctl_*_linux_amd64 ./mmdbctl
-          chmod +x ./mmdbctl
 
           cp GeoLite2-Country_*/*.mmdb ./output/
           cp GeoLite2-ASN_*/*.mmdb ./output/
@@ -67,12 +101,23 @@ jobs:
           cp GeoLite2-Country-CSV_*/*.csv ./geolite2/
           cp GeoLite2-ASN-CSV_*/*.csv ./geolite2/
 
+      - name: Prepare custom city data
+        if: github.event_name != 'pull_request'
+        run: |
+          cp ./output/IP2LOCATION-LITE-DB3.CSV.zip ./
+          unzip IP2LOCATION-LITE-DB3.CSV.zip
+          tar -xvzf mmdbctl_linux_amd64.tar.gz
+          gunzip geolite2-city-ipv6.csv.gz
+          mv -f mmdbctl_*_linux_amd64 ./mmdbctl
+          chmod +x ./mmdbctl
+
       - name: Build geoip files
         run: |
           go build ./
           ./geoip convert -c ./config.json
 
       - name: Build custom hybrid mmdb
+        if: github.event_name != 'pull_request'
         run: |
           pip install pycountry
           python customconverter.py IP2LOCATION-LITE-DB3.CSV,geolite2-city-ipv6.csv IP2Loc-GeoLite2-City.csv IP2Loc-GeoLite2-City.json
@@ -101,6 +146,7 @@ jobs:
           done
 
       - name: Git push assets to "release" branch
+        if: github.event_name != 'pull_request'
         run: |
           cd output || exit 1
           git init
@@ -113,13 +159,15 @@ jobs:
           git push -f -u geoip release
 
       - name: Purge jsdelivr CDN
+        if: github.event_name != 'pull_request'
         run: |
           cd output || exit 1
           for file in $(ls); do
-            curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@release/${file}"
+            curl -i --retry 3 "https://purge.jsdelivr.net/gh/${{ github.repository }}@release/${file}"
           done
 
       - name: Remove some files to avoid publishing to GitHub release
+        if: github.event_name != 'pull_request'
         run: |
           rm -rf ./output/*.{gz,zip}
           rm -rf ./output/GeoLite2-*.csv
@@ -128,15 +176,14 @@ jobs:
           rm -rf ./output/{clash,dat,mrs,nginx,srs,surge,text}
 
       - name: Upload files to GitHub release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file_glob: true
-          file: ./output/*
-          release_name: ${{ env.RELEASE_NAME }}
-          tag: ${{ env.TAG_NAME }}
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ env.TAG_NAME }} --title "${{ env.RELEASE_NAME }}" ./output/*
 
       - name: Delete older releases
+        if: github.event_name != 'pull_request'
         uses: dev-drprasad/delete-older-releases@v0.3.4
         with:
           repo: hicasper/geoip # defaults to current repo
